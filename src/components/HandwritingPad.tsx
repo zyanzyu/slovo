@@ -38,6 +38,9 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
     const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
     const timerRef = useRef<number | null>(null);
     const busyRef = useRef<Promise<RecognitionOutcome | null> | null>(null);
+    const recognitionAbortRef = useRef<AbortController | null>(null);
+    const inkVersionRef = useRef(0);
+    const pendingRecognitionRef = useRef(false);
     const [busy, setBusy] = useState(false);
     const [status, setStatus] = useState('用印刷体书写，写完后会自动识别');
     const [candidates, setCandidates] = useState<string[]>([]);
@@ -101,15 +104,70 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       return () => observer.disconnect();
     }, [setupCanvas]);
 
+    const makeOfflineCanvas = useCallback(() => {
+      const canvas = canvasRef.current;
+      const points = strokesRef.current.flat();
+      const size = sizeRef.current;
+      if (!canvas || !points.length || !size.width || !size.height) return canvas;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const point of points) {
+        if (point.x < minX) minX = point.x;
+        if (point.x > maxX) maxX = point.x;
+        if (point.y < minY) minY = point.y;
+        if (point.y > maxY) maxY = point.y;
+      }
+      const margin = 16;
+      minX = Math.max(0, minX - margin);
+      minY = Math.max(0, minY - margin);
+      maxX = Math.min(size.width, maxX + margin);
+      maxY = Math.min(size.height, maxY + margin);
+      const sx = canvas.width / size.width;
+      const sy = canvas.height / size.height;
+      const sourceX = Math.floor(minX * sx);
+      const sourceY = Math.floor(minY * sy);
+      const sourceW = Math.max(1, Math.ceil((maxX - minX) * sx));
+      const sourceH = Math.max(1, Math.ceil((maxY - minY) * sy));
+      const cropped = document.createElement('canvas');
+      cropped.width = sourceW;
+      cropped.height = sourceH;
+      const ctx = cropped.getContext('2d');
+      if (!ctx) return canvas;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, sourceW, sourceH);
+      ctx.drawImage(canvas, sourceX, sourceY, sourceW, sourceH, 0, 0, sourceW, sourceH);
+      return cropped;
+    }, []);
+
+    useEffect(() => {
+      if (!data.settings.offlineHandwriting) return;
+      let cancelled = false;
+      void import('../lib/ocr')
+        .then(({ preloadHandwritingWorker }) => {
+          if (!cancelled) return preloadHandwritingWorker();
+          return undefined;
+        })
+        .catch((error) => console.error('Handwriting preload failed', error));
+      return () => {
+        cancelled = true;
+      };
+    }, [data.settings.offlineHandwriting]);
+
     useEffect(
       () => () => {
         if (timerRef.current) window.clearTimeout(timerRef.current);
+        recognitionAbortRef.current?.abort();
       },
       [],
     );
 
     const clear = useCallback(() => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
+      recognitionAbortRef.current?.abort();
+      inkVersionRef.current += 1;
+      pendingRecognitionRef.current = false;
       strokesRef.current = [];
       currentRef.current = [];
       drawingRef.current = false;
@@ -123,6 +181,9 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
 
     const undo = useCallback(() => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
+      recognitionAbortRef.current?.abort();
+      inkVersionRef.current += 1;
+      pendingRecognitionRef.current = false;
       strokesRef.current.pop();
       setHasInk(strokesRef.current.length > 0);
       setCandidates([]);
@@ -145,20 +206,35 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const size = sizeRef.current;
+      const version = inkVersionRef.current;
+      const strokes = strokesRef.current.map((stroke) => stroke.slice());
+      const offlineCanvas = data.settings.offlineHandwriting
+        ? makeOfflineCanvas() ?? canvas
+        : undefined;
+      const controller = new AbortController();
+      recognitionAbortRef.current = controller;
       setBusy(true);
       onBusyChange?.(true);
       setStatus('正在识别笔画…');
       const task = (async () => {
         try {
           const result = await recognizeHandwriting({
-            strokes: strokesRef.current,
+            strokes,
             width: size.width,
             height: size.height,
             canvas,
+            offlineCanvas,
             online: data.settings.onlineHandwriting,
             offline: data.settings.offlineHandwriting,
-            onProgress: (label) => setStatus(label),
+            signal: controller.signal,
+            onProgress: (label) => {
+              if (version === inkVersionRef.current) setStatus(label);
+            },
           });
+          if (version !== inkVersionRef.current) {
+            pendingRecognitionRef.current = true;
+            return null;
+          }
           setCandidates(result.candidates);
           if (result.candidates.length) {
             onText?.(result.text);
@@ -176,11 +252,16 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
           return result;
         } catch (error) {
           console.error(error);
-          setStatus('识别服务暂时不可用，请切换键盘输入');
+          if (version === inkVersionRef.current) {
+            setStatus('识别服务暂时不可用，请切换键盘输入');
+          }
           return null;
         } finally {
           setBusy(false);
           onBusyChange?.(false);
+          if (recognitionAbortRef.current === controller) {
+            recognitionAbortRef.current = null;
+          }
         }
       })();
       busyRef.current = task;
@@ -188,10 +269,19 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
         return await task;
       } finally {
         if (busyRef.current === task) busyRef.current = null;
+        if (pendingRecognitionRef.current && autoRecognize) {
+          pendingRecognitionRef.current = false;
+          if (timerRef.current) window.clearTimeout(timerRef.current);
+          timerRef.current = window.setTimeout(() => {
+            void doRecognize();
+          }, 120);
+        }
       }
     }, [
+      autoRecognize,
       data.settings.offlineHandwriting,
       data.settings.onlineHandwriting,
+      makeOfflineCanvas,
       onBusyChange,
       onCandidates,
       onText,
@@ -207,13 +297,20 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       [clear, doRecognize],
     );
 
-    const scheduleRecognition = useCallback(() => {
-      if (!autoRecognize) return;
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(() => {
-        void doRecognize();
-      }, 1100);
-    }, [autoRecognize, doRecognize]);
+    const scheduleRecognition = useCallback(
+      (delay = 220) => {
+        if (!autoRecognize) return;
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        if (busyRef.current) {
+          pendingRecognitionRef.current = true;
+          return;
+        }
+        timerRef.current = window.setTimeout(() => {
+          void doRecognize();
+        }, delay);
+      },
+      [autoRecognize, doRecognize],
+    );
 
     function pointFromEvent(event: React.PointerEvent<HTMLCanvasElement>): InkPoint {
       const rect = event.currentTarget.getBoundingClientRect();
@@ -227,11 +324,23 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       if (event.button !== 0 && event.pointerType === 'mouse') return;
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      inkVersionRef.current += 1;
+      if (busyRef.current) {
+        pendingRecognitionRef.current = true;
+      } else {
+        pendingRecognitionRef.current = false;
+      }
+      recognitionAbortRef.current?.abort();
       const point = pointFromEvent(event);
       currentRef.current = [point];
       drawingRef.current = true;
       setHasInk(true);
       setCandidates([]);
+      onCandidates?.([]);
       setStatus('正在书写…');
       const ctx = ctxRef.current;
       if (ctx) {
@@ -275,8 +384,9 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
         strokesRef.current.push(currentRef.current);
         currentRef.current = [];
       }
+      inkVersionRef.current += 1;
       setStatus('松手后自动识别…');
-      scheduleRecognition();
+      scheduleRecognition(220);
     }
 
     return (

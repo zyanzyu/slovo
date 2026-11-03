@@ -87,6 +87,15 @@ async function getWorker(langs: string): Promise<Worker> {
   return promise;
 }
 
+/**
+ * Warm the Russian handwriting worker while the user is still writing.
+ * Loading the wasm core and traineddata is by far the largest first-use cost.
+ */
+export async function preloadHandwritingWorker(): Promise<void> {
+  await getWorker('rus');
+}
+
+
 function runExclusive<T>(task: () => Promise<T>): Promise<T> {
   const next = queue.then(task, task);
   queue = next.catch(() => undefined);
@@ -204,17 +213,17 @@ export async function recognizeHandwritingCanvas(
   source: HTMLCanvasElement,
   onProgress?: OcrProgress,
 ): Promise<{ text: string; confidence: number }> {
-  const factor = Math.min(3, Math.max(1.5, 1400 / Math.max(1, source.width)));
+  const factor = Math.min(2.2, Math.max(1.2, 700 / Math.max(1, source.width)));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(source.width * factor) + 64;
-  canvas.height = Math.round(source.height * factor) + 64;
+  canvas.width = Math.round(source.width * factor) + 48;
+  canvas.height = Math.round(source.height * factor) + 48;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { text: '', confidence: 0 };
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(source, 32, 32, canvas.width - 64, canvas.height - 64);
+  ctx.drawImage(source, 24, 24, canvas.width - 48, canvas.height - 48);
 
   activeProgress = onProgress ?? null;
   activeStage = 0.04;

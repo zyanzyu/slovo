@@ -39,40 +39,17 @@ export function parseInkResponse(payload: unknown): string[] {
 }
 
 
-let serviceProbe: { at: number; available: boolean } | null = null;
-
-async function handwritingServiceAvailable(): Promise<boolean> {
-  if (serviceProbe && Date.now() - serviceProbe.at < 30_000) return serviceProbe.available;
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 800);
-  try {
-    const response = await fetch('/api/health', { signal: controller.signal });
-    const type = response.headers.get('content-type') || '';
-    if (!response.ok || !type.includes('json')) {
-      serviceProbe = { at: Date.now(), available: false };
-      return false;
-    }
-    const payload = await response.json().catch(() => null);
-    const available = payload?.ok === true;
-    serviceProbe = { at: Date.now(), available };
-    return available;
-  } catch {
-    serviceProbe = { at: Date.now(), available: false };
-    return false;
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
 export async function recognizeInk(
   strokes: InkPoint[][],
   width: number,
   height: number,
-  timeoutMs = 4_500,
+  timeoutMs = 1_300,
+  outerSignal?: AbortSignal,
 ): Promise<string[]> {
-  if (!strokes.length) return [];
+  if (outerSignal?.aborted || !strokes.length) return [];
   const readable = strokes.filter((stroke) => stroke.length > 1);
   if (!readable.length) return [];
+
   const payload = {
     options: 'enable_pre_space',
     requests: [
@@ -92,6 +69,8 @@ export async function recognizeInk(
   };
 
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  outerSignal?.addEventListener('abort', abort, { once: true });
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch('/api/handwriting', {
@@ -101,11 +80,16 @@ export async function recognizeInk(
       signal: controller.signal,
     });
     if (!response.ok) return [];
+    // A static PWA can answer unknown routes with index.html. Do not treat
+    // that HTML fallback as a handwriting service.
+    const type = response.headers.get('content-type') || '';
+    if (!type.includes('json')) return [];
     return parseInkResponse(await response.json());
   } catch {
     return [];
   } finally {
     window.clearTimeout(timeout);
+    outerSignal?.removeEventListener('abort', abort);
   }
 }
 
@@ -114,31 +98,44 @@ export async function recognizeHandwriting(options: {
   width: number;
   height: number;
   canvas: HTMLCanvasElement;
+  offlineCanvas?: HTMLCanvasElement;
   online: boolean;
   offline: boolean;
+  signal?: AbortSignal;
   onProgress?: (label: string) => void;
 }): Promise<RecognitionOutcome> {
-  const { strokes, width, height, canvas, online, offline, onProgress } = options;
-  if (!strokes.length) return { text: '', candidates: [], source: 'none' };
+  const {
+    strokes,
+    width,
+    height,
+    canvas,
+    offlineCanvas,
+    online,
+    offline,
+    signal,
+    onProgress,
+  } = options;
 
-  if (online && (await handwritingServiceAvailable())) {
-    onProgress?.('在线识别中');
-    const onlineCandidates = await recognizeInk(strokes, width, height);
-    if (onlineCandidates.length) {
-      return { text: onlineCandidates[0], candidates: onlineCandidates, source: 'online' };
-    }
-    onProgress?.('在线识别没有结果，尝试离线');
-  } else if (online) {
-    onProgress?.('在线识别暂不可用，改用离线');
+  if (signal?.aborted || !strokes.length) {
+    return { text: '', candidates: [], source: 'none' };
   }
 
-  if (offline) {
-    onProgress?.('尝试离线识别');
+  let settled = false;
+  const report = (label: string) => {
+    if (!settled) onProgress?.(label);
+  };
+
+  let offlineTimer: number | undefined;
+  let offlineTask: Promise<RecognitionOutcome> | null = null;
+  const startOffline = async (): Promise<RecognitionOutcome> => {
+    if (settled || !offline) return { text: '', candidates: [], source: 'none' };
+    report('离线识别中');
     try {
       const { recognizeHandwritingCanvas } = await import('./ocr');
-      const result = await recognizeHandwritingCanvas(canvas, (progress, label) => {
-        onProgress?.(`${label} ${Math.round(progress * 100)}%`);
-      });
+      const result = await recognizeHandwritingCanvas(
+        offlineCanvas ?? canvas,
+        (progress, label) => report(`${label} ${Math.round(progress * 100)}%`),
+      );
       const text = result.text.trim();
       if (text) {
         return { text, candidates: [text], source: 'offline' };
@@ -146,7 +143,52 @@ export async function recognizeHandwriting(options: {
     } catch (error) {
       console.error('Offline handwriting recognition failed', error);
     }
+    return { text: '', candidates: [], source: 'none' };
+  };
+
+  if (offline) {
+    offlineTask = new Promise<RecognitionOutcome>((resolve) => {
+      // Let the network start first. If it is fast it wins before Tesseract;
+      // if it is slow, offline is already warming up in parallel.
+      const delay = online ? 220 : 0;
+      offlineTimer = window.setTimeout(() => {
+        void startOffline().then(resolve);
+      }, delay);
+    });
   }
 
+  if (online) {
+    report('在线识别中');
+    const onlineCandidates = await recognizeInk(strokes, width, height, 1_300, signal);
+    if (signal?.aborted) {
+      settled = true;
+      if (offlineTimer) window.clearTimeout(offlineTimer);
+      return { text: '', candidates: [], source: 'none' };
+    }
+    if (onlineCandidates.length) {
+      settled = true;
+      if (offlineTimer) window.clearTimeout(offlineTimer);
+      return {
+        text: onlineCandidates[0],
+        candidates: onlineCandidates,
+        source: 'online',
+      };
+    }
+    report('在线没有结果，尝试离线');
+  }
+
+  if (!offlineTask) {
+    return { text: '', candidates: [], source: 'none' };
+  }
+
+  const result = await offlineTask;
+  if (signal?.aborted) {
+    settled = true;
+    return { text: '', candidates: [], source: 'none' };
+  }
+  if (result.text) {
+    settled = true;
+    return result;
+  }
   return { text: '', candidates: [], source: 'none' };
 }

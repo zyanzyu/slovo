@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { AppProvider } from './lib/store';
+import { AppProvider, useApp } from './lib/store';
 import { ToastProvider } from './components/Toast';
 import { BottomNav } from './components/BottomNav';
 import { Home } from './pages/Home';
@@ -9,6 +9,27 @@ import { DeckDetail } from './pages/DeckDetail';
 import { ImportPage } from './pages/ImportPage';
 import { Study } from './pages/Study';
 import { Settings } from './pages/Settings';
+
+function BackgroundWarmup() {
+  const { data } = useApp();
+  useEffect(() => {
+    if (!data.settings.offlineHandwriting) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void import('./lib/ocr')
+        .then(({ preloadHandwritingWorker }) => {
+          if (!cancelled) return preloadHandwritingWorker();
+          return undefined;
+        })
+        .catch((error) => console.error('Handwriting preload failed', error));
+    }, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [data.settings.offlineHandwriting]);
+  return null;
+}
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -30,6 +51,7 @@ function PageShell() {
 export default function App() {
   return (
     <AppProvider>
+      <BackgroundWarmup />
       <ToastProvider>
         <BrowserRouter>
           <ScrollToTop />
