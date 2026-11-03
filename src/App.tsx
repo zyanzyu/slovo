@@ -22,7 +22,7 @@ function BackgroundWarmup() {
           return undefined;
         })
         .catch((error) => console.error('Handwriting preload failed', error));
-    }, 1200);
+    }, 300);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);

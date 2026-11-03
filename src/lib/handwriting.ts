@@ -157,38 +157,48 @@ export async function recognizeHandwriting(options: {
     });
   }
 
+  const pending: Array<{
+    source: 'online' | 'offline';
+    promise: Promise<RecognitionOutcome>;
+  }> = [];
+
   if (online) {
     report('在线识别中');
-    const onlineCandidates = await recognizeInk(strokes, width, height, 1_300, signal);
+    pending.push({
+      source: 'online',
+      promise: recognizeInk(strokes, width, height, 1_300, signal).then((candidates) => ({
+        text: candidates[0] ?? '',
+        candidates,
+        source: candidates.length ? 'online' as const : 'none' as const,
+      })),
+    });
+  }
+
+  if (offlineTask) {
+    pending.push({ source: 'offline', promise: offlineTask });
+  }
+
+  if (!pending.length) {
+    return { text: '', candidates: [], source: 'none' };
+  }
+
+  while (pending.length) {
+    const winner = await Promise.race(pending.map((item) => item.promise));
+    const winnerIndex = pending.findIndex((item) => item.source === winner.source);
+    if (winnerIndex >= 0) pending.splice(winnerIndex, 1);
     if (signal?.aborted) {
       settled = true;
       if (offlineTimer) window.clearTimeout(offlineTimer);
       return { text: '', candidates: [], source: 'none' };
     }
-    if (onlineCandidates.length) {
+    if (winner.text) {
       settled = true;
       if (offlineTimer) window.clearTimeout(offlineTimer);
-      return {
-        text: onlineCandidates[0],
-        candidates: onlineCandidates,
-        source: 'online',
-      };
+      return winner;
     }
-    report('在线没有结果，尝试离线');
   }
 
-  if (!offlineTask) {
-    return { text: '', candidates: [], source: 'none' };
-  }
-
-  const result = await offlineTask;
-  if (signal?.aborted) {
-    settled = true;
-    return { text: '', candidates: [], source: 'none' };
-  }
-  if (result.text) {
-    settled = true;
-    return result;
-  }
+  settled = true;
+  if (offlineTimer) window.clearTimeout(offlineTimer);
   return { text: '', candidates: [], source: 'none' };
 }
