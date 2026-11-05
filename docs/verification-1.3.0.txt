@@ -1,0 +1,52 @@
+СЛОВО 1.3.0 — local build verification
+Date: 2026-11-05
+Host: Linux aarch64 (container), no Android device UI
+
+ARTIFACTS
+- slovo-1.3.0.apk                  Android 8+, versionCode=5, versionName=1.3.0, debug signature
+- slovo-1.3.0-windows-x64.zip      Windows x64 portable Electron 31.7.7
+- slovo-1.3.0-linux-x64.tar.gz     Linux x64 portable Electron 31.7.7
+- slovo-1.3.0-linux-arm64.tar.gz   Linux arm64 portable Electron 31.7.7
+- SHA256SUMS                       hashes for the four artifacts above
+
+BUILD
+- `npm run build` (tsc + Vite 6) succeeded.
+- Android APK built with aapt/javac/d8/zipalign/apksigner.
+- `aapt dump badging`: package=com.slovo.app, versionCode=5, versionName=1.3.0,
+  minSdk=26, targetSdk=28.
+- Desktop packages were produced by scripts/build-desktop.mjs from the same dist.
+
+DESKTOP SMOKE (REAL RUN)
+- Linux arm64 package was launched under Xvfb with CDP on 127.0.0.1:9223.
+- HOME loaded: title 今天 · СЛОВО, /api/health {"ok":true,"platform":"linux"},
+  innerWidth 820, no horizontal overflow.
+- Library and Import routes loaded and passed horizontal-overflow checks.
+- Screenshot: /tmp/slovo-desktop-820.png (host-local verification artifact).
+- The Linux x64 package could not be executed on this aarch64 host (missing x86-64
+  loader); it is packaged but was not smoke-run here.
+- The Windows package was built but not run in this Linux container.
+
+HANDWRITING LATENCY
+- Benchmark: Playwright WebKit, 390x844 viewport, offline Tesseract path, word ПО.
+- Latest full run on this build:
+    warm-1: 1490 ms, result ПО
+    warm-2:  567 ms, result ПО
+- warm-1 includes cold Tesseract worker/model initialization. The first result is
+  therefore not millisecond-level.
+- Changes in 1.3: 80 ms post-stroke debounce (was 220 ms), retain 700 px image
+  width for accuracy, prewarm worker, race online/offline, cancel stale work.
+- 600 px and 480 px variants were faster (~437–466 ms) but misread ПО as ПС in
+  repeated runs, so they were rejected.
+- This is a measurable steady-state improvement, not a millisecond recognizer.
+  No claim is made that the Tesseract path reaches millisecond latency.
+
+TTS
+- 1.3.0 still uses the platform local speech engine (Android TextToSpeech,
+  Web Speech API on desktop/browser). No bundled neural TTS model is included
+  in this release.
+- The next version is reserved for the local TTS work.
+
+KNOWN LIMITS
+- Online handwriting proxy was not exercised in this static-preview benchmark.
+- Android APK was inspected with aapt but not installed on a physical device here.
+- Debug APK signing is for personal testing; use a private keystore for distribution.

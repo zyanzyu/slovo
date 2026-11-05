@@ -298,7 +298,7 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
     );
 
     const scheduleRecognition = useCallback(
-      (delay = 220) => {
+      (delay = 80) => {
         if (!autoRecognize) return;
         if (timerRef.current) window.clearTimeout(timerRef.current);
         if (busyRef.current) {
@@ -386,7 +386,7 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       }
       inkVersionRef.current += 1;
       setStatus('松手后自动识别…');
-      scheduleRecognition(220);
+      scheduleRecognition(80);
     }
 
     return (

@@ -150,7 +150,7 @@ export async function recognizeHandwriting(options: {
     offlineTask = new Promise<RecognitionOutcome>((resolve) => {
       // Let the network start first. If it is fast it wins before Tesseract;
       // if it is slow, offline is already warming up in parallel.
-      const delay = online ? 220 : 0;
+      const delay = online ? 80 : 0;
       offlineTimer = window.setTimeout(() => {
         void startOffline().then(resolve);
       }, delay);
