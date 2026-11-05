@@ -1,0 +1,53 @@
+СЛОВО 1.4.0 — local build verification
+Date: 2026-11-05
+Host: Linux aarch64 (container), no Android device UI, no Russian speech voice installed
+
+ARTIFACTS
+- slovo-1.4.0.apk                  Android 8+, versionCode=6, versionName=1.4.0, debug signature
+- slovo-1.4.0-windows-x64.zip      Windows x64 portable Electron 31.7.7
+- slovo-1.4.0-linux-x64.tar.gz     Linux x64 portable Electron 31.7.7
+- slovo-1.4.0-linux-arm64.tar.gz   Linux arm64 portable Electron 31.7.7
+- SHA256SUMS                       hashes for the four artifacts above
+
+BUILD
+- `npm run build` (tsc + Vite 6) succeeded.
+- Android APK built with aapt/javac/d8/zipalign/apksigner.
+- `aapt dump badging`: package=com.slovo.app, versionCode=6, versionName=1.4.0,
+  minSdk=26, targetSdk=28.
+- Desktop packages were produced by scripts/build-desktop.mjs from the same dist.
+
+DESKTOP SMOKE (REAL RUN)
+- Linux arm64 was launched under Xvfb with CDP on 127.0.0.1:9223.
+- HOME loaded: title 今天 · СЛОВО, /api/health {"ok":true,"platform":"linux"},
+  innerWidth 820, no horizontal overflow.
+- Library and Import routes loaded and passed horizontal-overflow checks.
+- Settings route loaded without page errors. It displayed:
+  "系统语音引擎（未找到俄语 voice）" because this container has no Russian TTS voice.
+- The Linux x64 package could not be executed on this aarch64 host; it is packaged
+  but was not smoke-run here.
+- The Windows package was built but not run in this Linux container.
+
+TTS
+- 1.4.0 does NOT bundle a neural TTS model. APK remains about 17 MB.
+- Web/Electron now prefers SpeechSynthesisVoice.localService Russian voices.
+- Android now enumerates ru voices and skips voices whose
+  isNetworkConnectionRequired() is true; it picks the highest-quality local voice
+  and falls back to the system Russian locale result.
+- Settings displays the selected voice name and has a test button.
+- This container has no Russian voice, so voice naturalness, latency and audio
+  output could not be verified here. No claim is made that the output is
+  human-sounding or that a specific Piper/Silero model is bundled.
+- A 160 MB Piper WASM package or a 50–150 MB neural model was rejected for this
+  lightweight APK and for Android-native integration risk.
+
+HANDWRITING
+- Unchanged from 1.3.0: 80 ms post-stroke debounce, 700 px image width,
+  worker prewarm, online/offline race and stale-work cancellation.
+- Measured 1.3.0 steady-state: 567 ms; first cold result: 1490 ms. This is not
+  millisecond-level and is reported as such.
+
+KNOWN LIMITS
+- No physical Android install/run in this environment.
+- No Russian voice in the test container; TTS quality is unverified.
+- Online handwriting proxy was not exercised in the static-preview benchmark.
+- Debug APK signing is for personal testing; use a private keystore for distribution.

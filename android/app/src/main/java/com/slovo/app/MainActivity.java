@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -72,7 +73,27 @@ public class MainActivity extends Activity {
             TextToSpeech engine = tts;
             if (engine == null) return;
             int result = engine.setLanguage(new Locale("ru", "RU"));
-            engine.setSpeechRate(0.9f);
+            Voice bestVoice = null;
+            try {
+                java.util.Set<Voice> voices = engine.getVoices();
+                if (voices != null) {
+                    for (Voice voice : voices) {
+                        Locale locale = voice.getLocale();
+                        if (locale == null || !"ru".equals(locale.getLanguage())) continue;
+                        if (voice.isNetworkConnectionRequired()) continue;
+                        if (bestVoice == null || voice.getQuality() > bestVoice.getQuality()) {
+                            bestVoice = voice;
+                        }
+                    }
+                }
+            } catch (Exception error) {
+                Log.w(TAG, "Cannot inspect local TTS voices", error);
+            }
+            if (bestVoice != null && engine.setVoice(bestVoice) == TextToSpeech.SUCCESS) {
+                result = TextToSpeech.SUCCESS;
+                Log.i(TAG, "Local Russian TTS voice: " + bestVoice.getName());
+            }
+            engine.setSpeechRate(0.92f);
             ttsReady = result != TextToSpeech.LANG_MISSING_DATA
                     && result != TextToSpeech.LANG_NOT_SUPPORTED;
         });

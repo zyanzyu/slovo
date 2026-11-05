@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../lib/store';
 import { usePageTitle } from '../lib/usePageTitle';
-import { hasRussianVoice, initSpeech, speakRussian } from '../lib/speech';
+import { getRussianVoiceName, hasRussianVoice, initSpeech, speakRussian } from '../lib/speech';
 import { ConfirmDialog } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import type { StudyMode } from '../lib/types';
@@ -95,11 +95,15 @@ export function Settings() {
   const [confirmAll, setConfirmAll] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [voiceReady, setVoiceReady] = useState(false);
+  const [voiceName, setVoiceName] = useState<string | null>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     initSpeech();
-    const check = () => setVoiceReady(hasRussianVoice());
+    const check = () => {
+      setVoiceReady(hasRussianVoice());
+      setVoiceName(getRussianVoiceName());
+    };
     check();
     const timer = window.setInterval(check, 1200);
     return () => window.clearInterval(timer);
@@ -336,7 +340,7 @@ export function Settings() {
         <div className="settings-row">
           <div className="settings-row-copy">
             <strong>俄语发音</strong>
-            <small>{voiceReady ? '已找到俄语语音' : '使用系统语音引擎'}</small>
+            <small>{voiceReady ? `本地俄语语音：${voiceName || '系统离线 voice'}` : '系统语音引擎（未找到俄语 voice）'}</small>
           </div>
           <button
             className="btn btn-outline sm"

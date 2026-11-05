@@ -1,6 +1,6 @@
 # СЛОВО — 俄语单词提背
 
-当前版本：`1.3.0`。
+当前版本：`1.4.0`。
 
 СЛОВО 是一个本地优先的俄语单词提背产品，同一套学习逻辑现在提供四种运行方式：
 
@@ -14,6 +14,7 @@
 - **自适应**：320px 手机到 1280px 桌面窗口都有独立断点；小屏评分 2×2，输入区不横向溢出。
 - **字号**：设置 → 显示与字号，四档即时生效并持久化；Android WebView 同步 `textZoom`。
 - **手写**：在线失败/超时自动离线；离线单词模式识别；失败有明确键盘入口。
+- **发音**：优先选择设备上的本地离线俄语 voice，跳过需要联网的 voice；设置页显示实际 voice 名称，可直接试听。
 - **听写**：没有俄语 TTS 时显示中文释义，不再“点了没声音”。
 - **数据**：存储写满、备份取消都会明确提示；Android 备份改为真实保存回调。
 
@@ -21,11 +22,11 @@
 
 ## 直接使用
 
-完整构建、测试证据、校验和与已知限制见：[`docs/verification-1.3.0.txt`](docs/verification-1.3.0.txt)。
+完整构建、测试证据、校验和与已知限制见：[`docs/verification-1.4.0.txt`](docs/verification-1.4.0.txt)。
 
 ### Android
 
-安装包：[`slovo-1.3.0.apk`](../../releases/latest/download/slovo-1.3.0.apk)
+安装包：[`slovo-1.4.0.apk`](../../releases/latest/download/slovo-1.4.0.apk)
 
 - Android 8.0（API 26）及以上；`targetSdk 28`。
 - 首次安装需允许“安装未知应用”。
@@ -34,7 +35,7 @@
 
 ### Windows
 
-压缩包：[`slovo-1.3.0-windows-x64.zip`](../../releases/latest/download/slovo-1.3.0-windows-x64.zip)
+压缩包：[`slovo-1.4.0-windows-x64.zip`](../../releases/latest/download/slovo-1.4.0-windows-x64.zip)
 
 1. 解压到任意目录（不要直接在压缩包里运行）。
 2. 双击 `Slovo.exe`。
@@ -44,11 +45,11 @@
 
 ### Linux
 
-- x64：[`slovo-1.3.0-linux-x64.tar.gz`](../../releases/latest/download/slovo-1.3.0-linux-x64.tar.gz)
-- arm64：[`slovo-1.3.0-linux-arm64.tar.gz`](../../releases/latest/download/slovo-1.3.0-linux-arm64.tar.gz)
+- x64：[`slovo-1.4.0-linux-x64.tar.gz`](../../releases/latest/download/slovo-1.4.0-linux-x64.tar.gz)
+- arm64：[`slovo-1.4.0-linux-arm64.tar.gz`](../../releases/latest/download/slovo-1.4.0-linux-arm64.tar.gz)
 
 ```bash
-tar -xzf slovo-1.3.0-linux-x64.tar.gz
+tar -xzf slovo-1.4.0-linux-x64.tar.gz
 ./Slovo-linux-x64/Slovo
 ```
 
@@ -121,9 +122,9 @@ npm run desktop:win         # Windows x64
 
 产物在 `release/`：
 
-- `slovo-1.3.0-linux-arm64.tar.gz`
-- `slovo-1.3.0-linux-x64.tar.gz`
-- `slovo-1.3.0-windows-x64.zip`
+- `slovo-1.4.0-linux-arm64.tar.gz`
+- `slovo-1.4.0-linux-x64.tar.gz`
+- `slovo-1.4.0-windows-x64.zip`
 
 打包器默认使用 Electron `31.7.7`。如果网络无法访问 GitHub，可先准备 Electron 运行时压缩包，再设置：
 
@@ -147,7 +148,7 @@ npm run build
 bash android/build-apk.sh
 ```
 
-产物：`release/slovo-1.3.0.apk`。
+产物：`release/slovo-1.4.0.apk`。
 
 构建链不依赖 Gradle 或 Android Studio：`aapt` 编译资源和 assets，`javac` 编译 Java，R8/D8 生成 `classes.dex`，`zipalign` 对齐，`apksigner` 签名。R8 已放在 `android/tools/r8.jar`。
 

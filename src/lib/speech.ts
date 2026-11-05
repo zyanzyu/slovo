@@ -9,9 +9,17 @@ function selectRussianVoice(): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return null;
-  const exact = voices.find((voice) => /^ru([-_]RU)?$/i.test(voice.lang));
-  const anyRussian = voices.find((voice) => voice.lang.toLowerCase().startsWith('ru'));
-  return exact ?? anyRussian ?? null;
+  const russian = voices.filter((voice) => voice.lang.toLowerCase().startsWith('ru'));
+  if (!russian.length) return null;
+  const local = russian.filter((voice) => voice.localService);
+  const exactLocal = local.find((voice) => /^ru([-_]RU)?$/i.test(voice.lang));
+  const exact = russian.find((voice) => /^ru([-_]RU)?$/i.test(voice.lang));
+  return exactLocal ?? local[0] ?? exact ?? russian[0];
+}
+
+export function getRussianVoiceName(): string | null {
+  initSpeech();
+  return (russianVoice ?? selectRussianVoice())?.name ?? null;
 }
 
 export function initSpeech(): void {
@@ -55,7 +63,7 @@ export function speakRussian(
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ru-RU';
-  utterance.rate = options.rate ?? 0.82;
+  utterance.rate = options.rate ?? 0.9;
   utterance.pitch = 1;
   utterance.volume = 1;
   const voice = russianVoice ?? selectRussianVoice();
