@@ -1,0 +1,39 @@
+{
+  "name": "slovo-russian-dictation",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "start": "node server.mjs",
+    "android:apk": "npm run build && bash android/build-apk.sh",
+    "desktop:linux": "npm run build && node scripts/build-desktop.mjs linux arm64",
+    "desktop:linux-x64": "npm run build && node scripts/build-desktop.mjs linux x64",
+    "desktop:win": "npm run build && node scripts/build-desktop.mjs win32 x64",
+    "test:desktop": "node scripts/desktop-smoke.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "mammoth": "^1.8.0",
+    "papaparse": "^5.4.1",
+    "pdfjs-dist": "^4.8.69",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1",
+    "tesseract.js": "^6.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.1.0",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "31.7.7",
+    "playwright": "^1.64.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5"
+  }
+}

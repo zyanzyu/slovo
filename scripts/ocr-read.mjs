@@ -1,0 +1,11 @@
+import { webkit } from 'playwright';
+const browser = await webkit.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+await page.goto('http://127.0.0.1:4173/import', { waitUntil: 'networkidle' });
+await page.getByRole('tab', { name: /拍照/ }).click();
+await page.locator('input[type=file]').first().setInputFiles('/tmp/ocr-words.png');
+await page.waitForSelector('.import-preview', { timeout: 60000 });
+const rows = await page.locator('.preview-row').evaluateAll((rows) => rows.map((row) => [...row.querySelectorAll('input')].map((i) => ({ value: i.value, aria: i.getAttribute('aria-label') }))));
+console.log(JSON.stringify(rows, null, 2));
+console.log('raw:', await page.locator('.raw-text-details textarea').inputValue());
+await browser.close();

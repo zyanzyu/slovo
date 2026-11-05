@@ -1,0 +1,332 @@
+@import './styles/base.css';
+@import './styles/home.css';
+@import './styles/library.css';
+@import './styles/import.css';
+@import './styles/study.css';
+@import './styles/settings.css';
+
+/* Small cross-page refinements */
+.page {
+  overflow-x: hidden;
+}
+
+.home-page,
+.library-page,
+.import-page,
+.settings-page,
+.deck-detail-page {
+  min-height: 60dvh;
+}
+
+.study-shell,
+.modal-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 124, 0.35) transparent;
+}
+
+.study-shell::-webkit-scrollbar,
+.modal-panel::-webkit-scrollbar {
+  width: 5px;
+}
+
+.study-shell::-webkit-scrollbar-thumb,
+.modal-panel::-webkit-scrollbar-thumb {
+  background: rgba(120, 130, 124, 0.35);
+  border-radius: 99px;
+}
+
+/* Readability floor: labels and controls should not fall below ~10px on phones. */
+.eyebrow {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.plan-label,
+.stat-strip span,
+.mode-card small,
+.settings-heading p,
+.settings-row small,
+.deck-card-meta,
+.plan-chip {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.source-tab small,
+.ocr-note,
+.dropzone-empty small,
+.import-tip p {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+  line-height: 1.5;
+}
+
+.settings-overview span,
+.stepper small {
+  font-size: max(10.5px, calc(9.5px * var(--font-scale)));
+}
+
+.method-grid p {
+  font-size: max(10.5px, calc(10.5px * var(--font-scale)));
+  line-height: 1.6;
+}
+
+.study-top {
+  font-size: max(10.5px, calc(9.5px * var(--font-scale)));
+}
+
+.prompt-badge {
+  font-size: max(10.5px, calc(9px * var(--font-scale)));
+}
+
+.listen-caption,
+.input-switch button,
+.hint-button,
+.reveal-button {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.key-space {
+  font-size: max(10.5px, calc(9.5px * var(--font-scale)));
+}
+
+.stat-item > span:last-child,
+.deck-row-copy small,
+.import-help,
+.import-panel .eyebrow {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.import-note p,
+.settings-footer p {
+  font-size: max(10.5px, calc(10.5px * var(--font-scale)));
+  line-height: 1.6;
+}
+
+.study-progress-wrap span {
+  font-size: max(10.5px, calc(9.5px * var(--font-scale)));
+}
+
+
+/* iOS zooms focused form fields below 16px; keep fields readable without zoom. */
+@media (max-width: 600px) {
+  input:not(.answer-input):not(.switch-input),
+  textarea,
+  select {
+    font-size: calc(16px * var(--font-scale));
+  }
+}
+
+.nav-item {
+  font-size: max(10.5px, calc(10.5px * var(--font-scale)));
+}
+
+.ring-center span {
+  font-size: max(10.5px, calc(9.5px * var(--font-scale)));
+  opacity: 0.66;
+}
+
+.modal-footer .btn {
+  min-height: 44px;
+}
+
+@media (max-width: 360px) {
+  .nav-item {
+    font-size: max(10.5px, calc(10px * var(--font-scale)));
+  }
+}
+
+.prompt-meta {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.proverb span {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+.answer-card-head > span {
+  font-size: max(10.5px, calc(10px * var(--font-scale)));
+}
+
+
+/* Desktop shell: keep the focused reading column, but give it room to breathe. */
+@media (min-width: 760px) {
+  .app-shell {
+    max-width: 720px;
+    padding-top: 34px;
+    padding-bottom: 118px;
+  }
+
+  .bottom-nav {
+    bottom: 18px;
+  }
+
+  .nav-inner {
+    max-width: 500px;
+  }
+}
+
+/* Adaptive layout: compact phone -> wide desktop window. */
+.page,
+.study-shell,
+.modal-panel {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 600px) and (max-width: 719px) {
+  .app-shell {
+    max-width: 680px;
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+}
+
+@media (min-width: 720px) {
+  .app-shell {
+    max-width: min(720px, calc(100vw - 56px));
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    max-width: 840px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-shell {
+    max-width: 920px;
+  }
+}
+
+@media (min-width: 760px) {
+  .study-top,
+  .study-main,
+  .study-footer,
+  .session-summary {
+    max-width: 640px;
+  }
+
+  .study-shell {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .study-main {
+    padding-top: clamp(28px, 5vh, 54px);
+  }
+}
+
+@media (max-width: 430px) {
+  .source-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .source-tab {
+    min-height: 58px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 9px 10px;
+    text-align: left;
+  }
+
+  .source-tab .source-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .source-tab strong,
+  .source-tab small {
+    text-align: left;
+  }
+}
+
+@media (max-width: 380px) {
+  .rating-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .rate-button {
+    min-height: 52px;
+    padding: 9px 8px;
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .rate-button small {
+    padding-right: 12px;
+  }
+
+  .rate-button kbd {
+    top: 4px;
+    right: 5px;
+  }
+
+  .mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mode-card:last-child {
+    flex-direction: row;
+    align-items: center;
+    min-height: 64px;
+    grid-column: 1 / -1;
+  }
+
+  .settings-row:not(.stacked) {
+    flex-wrap: wrap;
+  }
+
+  .settings-row:not(.stacked) .settings-row-copy {
+    flex: 1 1 100%;
+  }
+
+  .settings-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 9px;
+  }
+
+  .settings-overview > div:nth-child(odd) {
+    border-left: none;
+  }
+
+  .font-scale-options button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 330px) {
+  .source-tab small {
+    display: none;
+  }
+
+  .source-tab {
+    min-height: 48px;
+  }
+
+  .rate-button small {
+    font-size: max(10px, calc(9px * var(--font-scale)));
+  }
+}
+
+@media (max-height: 520px) {
+  .study-shell {
+    overflow-y: auto;
+  }
+
+  .study-main {
+    padding-top: 10px;
+  }
+
+  .study-top {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    padding-bottom: 4px;
+    background: rgba(20, 30, 24, 0.72);
+    backdrop-filter: blur(12px);
+  }
+}

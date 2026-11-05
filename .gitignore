@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+android/build/
+android/app/src/main/assets/www/
+android/slovo-debug.keystore
+javac.*.args
+*.log
+*.deb
+*.keystore
+*.jks
+.env
+.env.*
+.DS_Store

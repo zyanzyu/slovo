@@ -1,0 +1,15 @@
+import { webkit } from 'playwright';
+const browser = await webkit.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await page.goto('http://127.0.0.1:4174/import', { waitUntil: 'networkidle' });
+await page.getByRole('tab', { name: /文件/ }).click();
+await page.locator('input[type=file]').first().setInputFiles('/tmp/imports/ascii.pdf');
+await page.waitForTimeout(3500);
+const preview = await page.locator('.import-preview').count();
+const err = await page.locator('.inline-error').count() ? await page.locator('.inline-error').innerText() : '';
+const raw = await page.locator('.raw-text-details textarea').count() ? await page.locator('.raw-text-details textarea').inputValue() : '';
+console.log({ preview, err, raw, errors });
+await browser.close();

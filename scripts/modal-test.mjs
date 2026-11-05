@@ -1,0 +1,23 @@
+import { webkit } from 'playwright';
+const browser = await webkit.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+await page.goto('http://127.0.0.1:4173/library', { waitUntil: 'networkidle' });
+await page.getByRole('button', { name: /新建词库/ }).first().click();
+await page.waitForTimeout(250);
+const m = await page.evaluate(() => {
+  const b = document.querySelector('.modal-backdrop').getBoundingClientRect();
+  const p = document.querySelector('.modal-panel').getBoundingClientRect();
+  const active = document.activeElement;
+  return { backdrop: {x:b.x,y:b.y,w:b.width,h:b.height,bottom:b.bottom}, panel: {x:p.x,y:p.y,w:p.width,h:p.height,bottom:p.bottom}, active: active?.tagName + '.' + active?.className, overflow: document.body.style.overflow, vh: innerHeight };
+});
+console.log(JSON.stringify(m, null, 2));
+const input = page.locator('.modal-panel input').first();
+await input.fill('我的词库');
+await page.waitForTimeout(350);
+console.log('value after wait:', await input.inputValue());
+console.log('focus after wait:', await page.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(200);
+console.log('closed:', await page.locator('.modal-backdrop').count(), 'overflow:', await page.evaluate(() => document.body.style.overflow));
+console.log('focus restored:', await page.evaluate(() => document.activeElement?.textContent?.trim().slice(0,30)));
+await browser.close();
