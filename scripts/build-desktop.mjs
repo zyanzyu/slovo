@@ -121,9 +121,20 @@ if (platform === 'win32') {
   console.log(`PACKAGED ${archivePath}.zip`);
 } else {
   fs.rmSync(`${archivePath}.tar.gz`, { force: true });
-  execFileSync('tar', ['-czf', `${archivePath}.tar.gz`, '-C', releaseDir, folderName], {
-    stdio: 'inherit',
-  });
+  // GNU tar intermittently fails with ENOSYS under the proot used by the
+  // Android-hosted build container; Python's tarfile is equivalent and stable.
+  execFileSync('python3', [
+    '-c',
+    [
+      'import os, sys, tarfile',
+      'archive, root, folder = sys.argv[1:4]',
+      'with tarfile.open(archive, "w:gz") as t:',
+      '    t.add(os.path.join(root, folder), arcname=folder, recursive=True)',
+    ].join('\n'),
+    `${archivePath}.tar.gz`,
+    releaseDir,
+    folderName,
+  ], { stdio: 'inherit' });
   console.log(`PACKAGED ${archivePath}.tar.gz`);
 }
 
