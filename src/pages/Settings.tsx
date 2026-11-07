@@ -495,7 +495,7 @@ export function Settings() {
 
       <div className="version-line">
         <span>СЛОВО</span>
-        <span>v1.5.1 · 本地优先</span>
+        <span>v1.5.2 · 本地优先</span>
       </div>
 
       <ConfirmDialog

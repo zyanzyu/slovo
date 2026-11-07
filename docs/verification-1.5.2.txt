@@ -1,0 +1,167 @@
+СЛОВО 1.5.2 — local build and runtime verification
+=====================================================
+
+Date: 2026-11-08 (Asia/Shanghai)
+Host: Linux aarch64 container, Node.js 24.22.0, Electron 31.7.7
+     (Chromium 126.0.6478.234), Xvfb; no audio output device.
+Working tree: /root/workspace/3
+
+Artifacts
+---------
+name                                  bytes        sha256
+slovo-1.5.2.apk                       127242450    3f33fa226c01d7645af5bbbd5f946707494ca4dfe9bab68fb25008a700425cc1
+slovo-1.5.2-windows-x64.zip           200666462    c13c61ca12a851d58cb7296c960ee2b260f4ab2ab4ee23df72ff36ceb0fb1805
+slovo-1.5.2-linux-x64.tar.gz          194989596    7c4c6ceabecc609228e05f11dae88af880583358fc4913dcdf8b3ae9b81d83f9
+slovo-1.5.2-linux-arm64.tar.gz        195297197    f91d8268755b8b8ad970d38c7df555048a7bab3a294bba8d8eebef1c70ecfa83
+
+Web/production build
+--------------------
+`npm run build` (tsc --noEmit + vite build): passed in 24.83 s.
+1983 modules transformed. No TypeScript errors.
+Expected non-fatal warnings:
+- onnxruntime-web/dist/esm/ort.min.js uses eval.
+- ocr.ts is both dynamically and statically imported, so Vite warns that the
+  dynamic import will not create a separate chunk.
+- pdf.worker.min-*.js is a 1.38 MB worker chunk.
+The build output includes:
+  dist/tts/ru/.../ru_RU-irina-medium.onnx   63,201,294 bytes
+  dist/tts/piper_phonemize.data            18,077,249 bytes
+  dist/tts/ort/ort-wasm-simd.wasm          10,595,041 bytes
+  dist/tts/ort/ort-wasm.wasm                9,758,086 bytes
+The single-threaded runtime intentionally selects ort-wasm-simd.wasm; the
+unused threaded variant is not shipped.
+
+TTS runtime verification (desktop)
+----------------------------------
+The Russian voice is a genuinely bundled Piper/VITS model; no runtime HTTP
+request goes to HuggingFace or a CDN.
+
+Direct Electron test (src/lib/local-tts.ts, 127.0.0.1 Vite/dev page):
+- First `speakLocalRussian('привет')`: 6,465 ms including first-time
+  model/WASM/session load, AudioContext decode and playback.
+  onStart=true, onEnd=true.
+- First `synthesizeRussian('привет')` after warm-up: 704 ms, 23,596-byte
+  audio/x-wav blob, RIFF/WAVE header.
+- Next `synthesizeRussian('здравствуйте')`: 1,030 ms, 45,612-byte
+  audio/x-wav blob.
+- OPFS cached the model and voice config; the second synthesis did not fetch
+  the 63 MB model.
+- The ONNX InferenceSession is cached per voice after the first synthesis.
+  The WAV cache (120 entries, LRU) makes repeated SRS cards return the same
+  blob without running the phonemizer/ONNX again.
+
+Packaged Linux arm64 app, Settings -> 试听 (real production dist and real
+local HTTP server, not the dev server):
+- Voice label shown: "内置离线音色：Piper · Irina (ru_RU, 离线)".
+- Requests observed:
+    /tts/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx.json
+    /tts/piper_phonemize.data
+    /tts/piper_phonemize.wasm
+    /tts/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx
+    /tts/ort/ort-wasm-simd.wasm
+- No page errors or console errors. The request sequence proves the packaged
+  app is reading the bundled voice and WASM from its own local server.
+- The container has no audio hardware, so the waveform was decoded and the
+  AudioContext source started/ended, but no human listening test was possible.
+  Naturalness of the Irina voice is therefore NOT independently verified here.
+
+Packaged desktop navigation smoke
+---------------------------------
+`SLOVO_CDP_PORT=9223 node scripts/desktop-smoke.mjs` against the packaged
+Linux arm64 app:
+- HOME: title present, `innerWidth=820`, document scrollWidth=805,
+  app-shell width=720, `/api/health` returned `{"ok":true,"platform":"linux"}`,
+  service worker registrations=0.
+- LIBRARY: shell scrollWidth <= clientWidth (no horizontal overflow).
+- IMPORT: shell scrollWidth <= clientWidth.
+- Screenshot: /tmp/slovo-desktop-820.png (local test artifact, not a release
+  asset).
+Note: the script starts on the Settings route, so HOME reports the Settings
+title; navigation and health still passed.
+
+Android static verification
+---------------------------
+`bash android/build-apk.sh`: exit 0.
+- aapt: package=com.slovo.app, versionCode=9, versionName=1.5.2,
+  minSdk=26, targetSdk=28.
+- zipalign -c -p 4: passed.
+- apksigner: APK Signature Scheme v2=true, v3=true, v1=false.
+- TTS assets are present under assets/www/tts and are ZIP_STORED:
+    63,201,294  assets/www/tts/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx
+    18,077,249  assets/www/tts/piper_phonemize.data
+    10,595,041  assets/www/tts/ort/ort-wasm-simd.wasm
+     9,758,086  assets/www/tts/ort/ort-wasm.wasm
+- MainActivity uses AssetManager.openFd() for stored assets and sends an exact
+  Content-Length before streaming; compressed/unknown assets use chunked
+  transfer. The APK was inspected statically, but NOT installed or exercised
+  on a physical Android device in this session. The device screen was locked
+  and the available ADB/Shizuku channel refused connections. Android WebView
+  OPFS, WASM and AudioContext behavior with the 63 MB model therefore remains
+  an explicit unverified boundary.
+
+Desktop packaging
+-----------------
+- Linux arm64: Electron 31.7.7, portable directory packaged, tar.gz.
+- Linux x64: packaged; cannot execute an x64 Electron binary on this aarch64
+  host, so only structure/archive inspection was performed.
+- Windows x64: packaged; cannot execute a Windows PE binary here, so only
+  archive/structure inspection was performed.
+- All three desktop archives contain `resources/app/dist/tts/...`, including
+  the 63 MB model. Linux arm64 was actually started and exercised.
+
+Handwriting / OCR boundary
+--------------------------
+This release does not claim millisecond handwriting recognition. The 1.3
+benchmark remains the latest measured result: ~1,490 ms cold and ~567 ms warm
+for the offline fallback; 600/480 px downscaling misread "ПО" as "ПС". The
+online path can be faster when available, but it is network-dependent. The
+1.5 work focused on the bundled TTS and release packaging; handwriting was not
+rewritten.
+
+Source assets
+-------------
+The 63 MB voice and copied WASM files are deliberately gitignored. A clean
+checkout must run:
+    npm install
+    npm run tts:prepare
+`tts:prepare` copies Piper/ONNX runtime files from npm and downloads the voice
+from the public mirror, verifying SHA-256
+8ff38212d23da300bbe3705c645e6e5b9475f0bfde01558eb17813e22acaaaaa.
+
+License boundary
+----------------
+VITS Web, Piper WASM and ONNX Runtime are MIT. eSpeak NG compiled into the
+phonemizer is GPL-3.0. The Irina model card lists Dataset License: Unknown.
+See docs/THIRD_PARTY_TTS.md. This is a disclosure, not a legal clearance.
+
+Known unverified / limitations
+-------------------------------
+- Android real-device install, first-run 63 MB asset streaming, WebView audio
+  and OPFS cache.
+- Windows real-machine start.
+- Linux x64 real-machine start.
+- Subjective naturalness / "human-likeness" of the Irina voice; no listening
+  hardware in the build container.
+- Arbitrary new handwriting is still sub-second warm, not millisecond-level;
+  identical cached strokes measured 14-16 ms.
+
+1.5.2 note
+----------
+1.5.2 adds a local handwriting-result cache and reuses Tesseract worker
+parameters. The cache is keyed by the exact rounded stroke geometry plus the
+canvas size, is memory + localStorage backed, LRU-capped at 160 entries, and
+is only populated by successful recognition.
+
+Measured in the Vite dev server with WebKit/Playwright, offline handwriting,
+after the Tesseract Russian worker was preloaded:
+- warm-1 (new strokes): 462 ms, source offline, candidates ["ПО"].
+- warm-2 (same strokes after clearing the canvas): 16 ms, status
+  "本地缓存命中，可点选其他候选", same candidates.
+The 16 ms is a true cache hit, including the zero-delay scheduler and React
+state update. A production `vite preview` run of the built dist repeated it at
+450 ms / 14 ms with the same `ПО` candidates. It is not a new-character
+recognition time.
+
+Tesseract is still the first-pass engine for unseen handwriting; a warm new
+word remains roughly 0.46 s and a cold first use roughly 1.5 s. No claim is
+made that arbitrary new handwriting is millisecond-level.

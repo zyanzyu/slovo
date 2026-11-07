@@ -53,7 +53,7 @@ async function run(label) {
   await page.waitForFunction(
     () => {
       const element = document.querySelector('.handwriting-status');
-      return Boolean(element && /识别完成|没有识别清楚|不可用/.test(element.textContent || ''));
+      return Boolean(element && /识别完成|缓存命中|没有识别清楚|不可用/.test(element.textContent || ''));
     },
     undefined,
     { timeout: 20_000 },

@@ -7,7 +7,12 @@ import {
   useState,
 } from 'react';
 import { Eraser, LoaderCircle, Sparkles, Undo2 } from 'lucide-react';
-import { recognizeHandwriting, type InkPoint, type RecognitionOutcome } from '../lib/handwriting';
+import {
+  getHandwritingCache,
+  recognizeHandwriting,
+  type InkPoint,
+  type RecognitionOutcome,
+} from '../lib/handwriting';
 import { useApp } from '../lib/store';
 
 export interface HandwritingPadHandle {
@@ -242,7 +247,9 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
             setStatus(
               result.source === 'online'
                 ? '识别完成，可点选其他候选'
-                : '离线识别完成，可点选其他候选',
+                : result.source === 'cache'
+                  ? '本地缓存命中，可点选其他候选'
+                  : '离线识别完成，可点选其他候选',
             );
           } else {
             onText?.('');
@@ -386,7 +393,12 @@ export const HandwritingPad = forwardRef<HandwritingPadHandle, HandwritingPadPro
       }
       inkVersionRef.current += 1;
       setStatus('松手后自动识别…');
-      scheduleRecognition(80);
+      const cached = getHandwritingCache(
+        strokesRef.current,
+        sizeRef.current.width,
+        sizeRef.current.height,
+      );
+      scheduleRecognition(cached ? 0 : 80);
     }
 
     return (

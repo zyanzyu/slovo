@@ -3,6 +3,7 @@ import type { LoggerMessage, Worker } from 'tesseract.js';
 export type OcrProgress = (progress: number, label: string) => void;
 
 const workers = new Map<string, Promise<Worker>>();
+const workerModes = new WeakMap<Worker, string>();
 let activeProgress: OcrProgress | null = null;
 let activeStage = 0;
 let queue: Promise<unknown> = Promise.resolve();
@@ -87,6 +88,16 @@ async function getWorker(langs: string): Promise<Worker> {
   return promise;
 }
 
+async function setWorkerMode(
+  worker: Worker,
+  mode: string,
+  parameters: Record<string, string>,
+): Promise<void> {
+  if (workerModes.get(worker) === mode) return;
+  await worker.setParameters(parameters);
+  workerModes.set(worker, mode);
+}
+
 /**
  * Warm the Russian handwriting worker while the user is still writing.
  * Loading the wasm core and traineddata is by far the largest first-use cost.
@@ -165,7 +176,7 @@ export async function recognizeImageFile(
     activeProgress?.(0.08, '加载识别模型');
     const worker = await getWorker(langs);
     const { PSM } = await import('tesseract.js');
-    await worker.setParameters({
+    await setWorkerMode(worker, 'ocr-auto', {
       tessedit_pageseg_mode: PSM.AUTO,
       preserve_interword_spaces: '1',
       user_defined_dpi: '300',
@@ -184,7 +195,7 @@ export async function recognizeImageFile(
       activeProgress = null;
       try {
         const russianWorker = await getWorker('rus');
-        await russianWorker.setParameters({
+        await setWorkerMode(russianWorker, 'ocr-auto-rus', {
           tessedit_pageseg_mode: PSM.AUTO,
           preserve_interword_spaces: '1',
           user_defined_dpi: '300',
@@ -232,7 +243,7 @@ export async function recognizeHandwritingCanvas(
   return runExclusive(async () => {
     const { PSM } = await import('tesseract.js');
     const worker = await getWorker('rus');
-    await worker.setParameters({
+    await setWorkerMode(worker, 'handwriting', {
       tessedit_pageseg_mode: PSM.SINGLE_WORD,
       tessedit_char_whitelist:
         'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ-',

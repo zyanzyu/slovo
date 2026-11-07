@@ -6,8 +6,83 @@ export interface InkPoint {
 export interface RecognitionOutcome {
   text: string;
   candidates: string[];
-  source: 'online' | 'offline' | 'none';
+  source: 'online' | 'offline' | 'cache' | 'none';
 }
+
+const CACHE_STORAGE_KEY = 'slovo.handwriting.cache.v1';
+const CACHE_LIMIT = 160;
+const memoryCache = new Map<string, string[]>();
+let cacheLoaded = false;
+
+function strokeKey(strokes: InkPoint[][], width: number, height: number): string {
+  const readable = strokes.filter((stroke) => stroke.length > 1);
+  return JSON.stringify({
+    w: Math.round(width),
+    h: Math.round(height),
+    s: readable.map((stroke) =>
+      stroke.map((point) => [Math.round(point.x), Math.round(point.y)]),
+    ),
+  });
+}
+
+function loadCache(): void {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+  try {
+    const raw = window.localStorage.getItem(CACHE_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, string[]>;
+    for (const [key, candidates] of Object.entries(parsed)) {
+      if (Array.isArray(candidates) && candidates.length) {
+        memoryCache.set(key, candidates.filter((value) => typeof value === 'string'));
+      }
+    }
+  } catch {
+    // Cache is an optimization; storage may be disabled or full.
+  }
+}
+
+function persistCache(): void {
+  try {
+    const entries = Array.from(memoryCache.entries()).slice(-CACHE_LIMIT);
+    window.localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    // Ignore quota/private-mode failures; the memory cache still helps.
+  }
+}
+
+function rememberRecognition(
+  strokes: InkPoint[][],
+  width: number,
+  height: number,
+  candidates: string[],
+): void {
+  const unique = Array.from(new Set(candidates.map((value) => value.trim()).filter(Boolean)));
+  if (!unique.length) return;
+  memoryCache.delete(strokeKey(strokes, width, height));
+  memoryCache.set(strokeKey(strokes, width, height), unique.slice(0, 8));
+  while (memoryCache.size > CACHE_LIMIT) {
+    const oldest = memoryCache.keys().next().value;
+    if (typeof oldest !== 'string') break;
+    memoryCache.delete(oldest);
+  }
+  persistCache();
+}
+
+export function getHandwritingCache(
+  strokes: InkPoint[][],
+  width: number,
+  height: number,
+): RecognitionOutcome | null {
+  loadCache();
+  const candidates = memoryCache.get(strokeKey(strokes, width, height));
+  if (!candidates?.length) return null;
+  // Refresh LRU position without growing the cache.
+  memoryCache.delete(strokeKey(strokes, width, height));
+  memoryCache.set(strokeKey(strokes, width, height), candidates);
+  return { text: candidates[0], candidates: [...candidates], source: 'cache' };
+}
+
 
 function cyrillicCandidates(node: unknown, found: string[][] = []): string[][] {
   if (Array.isArray(node)) {
@@ -120,6 +195,9 @@ export async function recognizeHandwriting(options: {
     return { text: '', candidates: [], source: 'none' };
   }
 
+  const cached = getHandwritingCache(strokes, width, height);
+  if (cached) return cached;
+
   let settled = false;
   const report = (label: string) => {
     if (!settled) onProgress?.(label);
@@ -194,6 +272,7 @@ export async function recognizeHandwriting(options: {
     if (winner.text) {
       settled = true;
       if (offlineTimer) window.clearTimeout(offlineTimer);
+      rememberRecognition(strokes, width, height, winner.candidates);
       return winner;
     }
   }
