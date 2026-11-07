@@ -132,7 +132,7 @@ export function Study() {
         toast('当前设备没有可用的俄语语音；已切换为看中文作答', 'error');
         return;
       }
-      speechTimer.current = window.setTimeout(() => setSpeaking(false), 7000);
+      speechTimer.current = window.setTimeout(() => setSpeaking(false), 30000);
     },
     [toast],
   );

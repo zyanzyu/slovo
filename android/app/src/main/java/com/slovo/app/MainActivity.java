@@ -2,6 +2,7 @@ package com.slovo.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.Color;
 import android.net.Uri;
@@ -515,27 +516,21 @@ public class MainActivity extends Activity {
                     return;
                 }
 
-                byte[] data;
                 String contentType = mime(path);
-                try (InputStream asset = openAsset(path)) {
-                    data = readAll(asset);
+                try {
+                    sendAsset(socket.getOutputStream(), path, contentType, "HEAD".equals(method),
+                            path.endsWith(".html") ? "no-cache" : "public, max-age=86400");
                 } catch (FileNotFoundException missing) {
                     int slash = path.lastIndexOf('/');
                     String name = slash >= 0 ? path.substring(slash + 1) : path;
                     if (!name.contains(".")) {
-                        try (InputStream fallback = assets.open("www/index.html")) {
-                            data = readAll(fallback);
-                            contentType = "text/html; charset=utf-8";
-                        }
+                        sendAsset(socket.getOutputStream(), "/index.html", "text/html; charset=utf-8",
+                                "HEAD".equals(method), "no-cache");
                     } else {
                         send(socket.getOutputStream(), 404, "text/plain; charset=utf-8",
                                 "Not found".getBytes(StandardCharsets.UTF_8), false);
-                        return;
                     }
                 }
-
-                String cache = path.endsWith(".html") ? "no-cache" : "public, max-age=86400";
-                send(socket.getOutputStream(), 200, contentType, data, "HEAD".equals(method), cache);
             } catch (Exception error) {
                 Log.w(TAG, "HTTP request failed", error);
             }
@@ -553,6 +548,66 @@ public class MainActivity extends Activity {
                 }
                 throw missing;
             }
+        }
+
+        /**
+         * Sends a static asset without loading it fully into the Java heap.
+         * Uncompressed assets use AssetFileDescriptor and an exact
+         * Content-Length; compressed assets fall back to HTTP chunked encoding.
+         */
+        private void sendAsset(OutputStream out, String path, String type,
+                               boolean headOnly, String cache) throws IOException {
+            try (AssetFileDescriptor descriptor = assets.openFd("www" + path)) {
+                long length = descriptor.getLength();
+                if (length >= 0) {
+                    String headers = "HTTP/1.1 200 OK\r\n"
+                            + "Content-Type: " + type + "\r\n"
+                            + "Content-Length: " + length + "\r\n"
+                            + "Cache-Control: " + cache + "\r\n"
+                            + "X-Content-Type-Options: nosniff\r\n"
+                            + "Connection: close\r\n\r\n";
+                    out.write(headers.getBytes(StandardCharsets.ISO_8859_1));
+                    if (!headOnly) {
+                        try (InputStream input = descriptor.createInputStream()) {
+                            copy(input, out);
+                        }
+                    }
+                    out.flush();
+                    return;
+                }
+            } catch (FileNotFoundException compressedOrMissing) {
+                // Compressed assets cannot be opened as a file descriptor.
+            }
+
+            try (InputStream input = openAsset(path)) {
+                String headers = "HTTP/1.1 200 OK\r\n"
+                        + "Content-Type: " + type + "\r\n"
+                        + "Transfer-Encoding: chunked\r\n"
+                        + "Cache-Control: " + cache + "\r\n"
+                        + "X-Content-Type-Options: nosniff\r\n"
+                        + "Connection: close\r\n\r\n";
+                out.write(headers.getBytes(StandardCharsets.ISO_8859_1));
+                if (headOnly) {
+                    out.flush();
+                    return;
+                }
+                byte[] chunk = new byte[65536];
+                int read;
+                while ((read = input.read(chunk)) != -1) {
+                    out.write(Integer.toHexString(read).getBytes(StandardCharsets.ISO_8859_1));
+                    out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                    out.write(chunk, 0, read);
+                    out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                }
+                out.write("0\r\n\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                out.flush();
+            }
+        }
+
+        private static void copy(InputStream input, OutputStream out) throws IOException {
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) != -1) out.write(buffer, 0, read);
         }
 
         private void proxyHandwriting(OutputStream out, byte[] body) throws IOException {
@@ -643,6 +698,9 @@ public class MainActivity extends Activity {
             if (lower.endsWith(".webp")) return "image/webp";
             if (lower.endsWith(".woff2")) return "font/woff2";
             if (lower.endsWith(".wasm")) return "application/wasm";
+            if (lower.endsWith(".onnx") || lower.endsWith(".data") || lower.endsWith(".bin")) {
+                return "application/octet-stream";
+            }
             if (lower.endsWith(".gz")) return "application/gzip";
             return "application/octet-stream";
         }

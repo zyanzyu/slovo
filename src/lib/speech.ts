@@ -1,4 +1,10 @@
 import { getNativeBridge } from './platform';
+import {
+  getLocalTtsName,
+  hasLocalTtsSupport,
+  speakLocalRussian,
+  stopLocalTts,
+} from './local-tts';
 
 let nativeTimer: number | null = null;
 
@@ -18,6 +24,7 @@ function selectRussianVoice(): SpeechSynthesisVoice | null {
 }
 
 export function getRussianVoiceName(): string | null {
+  if (hasLocalTtsSupport()) return getLocalTtsName();
   initSpeech();
   return (russianVoice ?? selectRussianVoice())?.name ?? null;
 }
@@ -33,6 +40,7 @@ export function initSpeech(): void {
 }
 
 export function hasRussianVoice(): boolean {
+  if (hasLocalTtsSupport()) return true;
   const bridge = getNativeBridge();
   if (bridge?.speak) {
     return bridge.hasRussianVoice ? bridge.hasRussianVoice() : true;
@@ -40,9 +48,9 @@ export function hasRussianVoice(): boolean {
   return Boolean(russianVoice ?? selectRussianVoice());
 }
 
-export function speakRussian(
+function speakSystemOrNative(
   text: string,
-  options: { rate?: number; onStart?: () => void; onEnd?: () => void } = {},
+  options: { rate?: number; onStart?: () => void; onEnd?: () => void },
 ): boolean {
   const bridge = getNativeBridge();
   if (bridge?.speak && (!bridge.hasRussianVoice || bridge.hasRussianVoice())) {
@@ -81,7 +89,22 @@ export function speakRussian(
   return true;
 }
 
+export function speakRussian(
+  text: string,
+  options: { rate?: number; onStart?: () => void; onEnd?: () => void } = {},
+): boolean {
+  if (hasLocalTtsSupport()) {
+    void speakLocalRussian(text, { ...options, rate: options.rate ?? 1 }).catch((error) => {
+      console.warn('Bundled Russian TTS failed; falling back to system voice.', error);
+      speakSystemOrNative(text, options);
+    });
+    return true;
+  }
+  return speakSystemOrNative(text, options);
+}
+
 export function stopSpeech(): void {
+  stopLocalTts();
   const bridge = getNativeBridge();
   if (bridge?.stopSpeaking) bridge.stopSpeaking();
   if (nativeTimer !== null) {

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 release/
+# The 63 MB neural voice and copied WASM runtimes are release assets, not source.
+# Recreate them with: npm run tts:prepare
+public/tts/
 android/build/
 android/app/src/main/assets/www/
 android/slovo-debug.keystore

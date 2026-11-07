@@ -63,9 +63,10 @@ java -cp "$R8_JAR" com.android.tools.r8.D8 \
 
 echo "[4/6] aapt 打包资源与前端 assets"
 "$AAPT" package -f -M "$MANIFEST" -S "$RES" -A "$ASSETS" -I "$ANDROID_JAR" \
+  -0 onnx -0 wasm -0 data \
   -F "$BUILD/unsigned.apk"
 
-echo "[5/6] 写入 dex，并保持 traineddata.gz 原始字节"
+echo "[5/6] 写入 dex，并保持大模型/运行时资产不压缩"
 python3 - "$BUILD/unsigned.apk" "$BUILD/dex/classes.dex" <<'PY'
 import os
 import sys
@@ -81,7 +82,11 @@ try:
     with zipfile.ZipFile(apk) as zin, zipfile.ZipFile(tmp, "w") as zout:
         for info in zin.infolist():
             data = zin.read(info.filename)
-            stored = info.filename.startswith("assets/www/tessdata/") and info.filename.endswith(".gz")
+            lower = info.filename.lower()
+            stored = (
+                (info.filename.startswith("assets/www/tessdata/") and info.filename.endswith(".gz"))
+                or lower.endswith((".onnx", ".wasm", ".data"))
+            )
             info.compress_type = zipfile.ZIP_STORED if stored else info.compress_type
             zout.writestr(info, data)
     os.replace(tmp, apk)

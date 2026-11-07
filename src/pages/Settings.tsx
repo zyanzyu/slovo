@@ -340,7 +340,7 @@ export function Settings() {
         <div className="settings-row">
           <div className="settings-row-copy">
             <strong>俄语发音</strong>
-            <small>{voiceReady ? `本地俄语语音：${voiceName || '系统离线 voice'}` : '系统语音引擎（未找到俄语 voice）'}</small>
+            <small>{voiceReady ? `内置离线音色：${voiceName || 'Piper · Irina (ru_RU)'}` : '没有可用的俄语语音'}</small>
           </div>
           <button
             className="btn btn-outline sm"

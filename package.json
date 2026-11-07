@@ -1,13 +1,14 @@
 {
   "name": "slovo-russian-dictation",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "node server.mjs",
+    "tts:prepare": "node scripts/prepare-tts-assets.mjs",
     "android:apk": "npm run build && bash android/build-apk.sh",
     "desktop:linux": "npm run build && node scripts/build-desktop.mjs linux arm64",
     "desktop:linux-x64": "npm run build && node scripts/build-desktop.mjs linux x64",
@@ -15,8 +16,11 @@
     "test:desktop": "node scripts/desktop-smoke.mjs"
   },
   "dependencies": {
+    "@diffusionstudio/piper-wasm": "^1.0.0",
+    "@diffusionstudio/vits-web": "^1.0.3",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.8.0",
+    "onnxruntime-web": "^1.18.0",
     "papaparse": "^5.4.1",
     "pdfjs-dist": "^4.8.69",
     "react": "^19.0.0",

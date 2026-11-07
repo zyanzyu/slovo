@@ -17,6 +17,8 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
+  '.onnx': 'application/octet-stream',
+  '.data': 'application/octet-stream',
   '.gz': 'application/gzip',
   '.traineddata': 'application/octet-stream',
   '.webmanifest': 'application/manifest+json',
@@ -83,6 +85,7 @@ export function createSlovoServer({ distDir }) {
 
     const ext = path.extname(file).toLowerCase();
     res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
+    res.setHeader('Content-Length', String(fs.statSync(file).size));
 
     if (ext === '.html' || pathname === '/sw.js' || ext === '.webmanifest') {
       res.setHeader('Cache-Control', 'no-cache');
